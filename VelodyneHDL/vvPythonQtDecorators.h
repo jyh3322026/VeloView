@@ -6,10 +6,10 @@
 #include <QObject>
 
 #include "pqVelodyneManager.h"
-#include "vvCalibrationDialog.h"
-#include "vvCropReturnsDialog.h"
-#include "vvLaserSelectionDialog.h"
-#include "vvSelectFramesDialog.h"
+#include "Ui/vvCalibrationDialog.h"
+#include "Ui/vvCropReturnsDialog.h"
+#include "Ui/vvLaserSelectionDialog.h"
+#include "Ui/vvSelectFramesDialog.h"
 
 class vvPythonQtDecorators : public QObject
 {
@@ -89,7 +89,7 @@ public slots:
     pqVelodyneManager::saveFramesToPCAP(arg0, arg1, arg2, arg3);
   }
 
-  void static_pqVelodyneManager_saveFramesToLAS(vtkVelodyneHDLReader* arg0, vtkPolyData* arg1,
+  void static_pqVelodyneManager_saveFramesToLAS(vtkLidarReader* arg0, vtkPolyData* arg1,
     int arg2, int arg3, const QString& arg4, int arg5)
   {
     pqVelodyneManager::saveFramesToLAS(arg0, arg1, arg2, arg3, arg4, arg5);

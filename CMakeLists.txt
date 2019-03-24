@@ -12,13 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 2.8.8 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+include("SoftwareInformation/branding.cmake")
 project(VeloView)
+
+set (CMAKE_CXX_STANDARD 11)
+
+if (MSVC)
+    # warning level all
+    add_compile_options(/Wall)
+else()
+    # warning level all and extra
+    add_compile_options(-Wall -Wextra)
+endif()
 
 # Disallow in-source build
 if ("${VeloView_SOURCE_DIR}"  STREQUAL "${VeloView_BINARY_DIR}")
   message(FATAL_ERROR
-    "VeloView requires an out of source Build. "
+    "${SOFTWARE_NAME} requires an out of source Build. "
     "Please create a separate binary directory and run CMake there.")
 endif()
 
@@ -30,6 +41,33 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   # Set the possible values of build type for cmake-gui
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release"
     "MinSizeRel" "RelWithDebInfo")
+endif()
+
+#-------------------------------------------------------------------------------
+# Doxygen Documentation option
+option(BUILD_DOC "Build documentation" OFF)
+
+if(BUILD_DOC)
+  # check if Doxygen is installed
+  find_package(Doxygen)
+  if (DOXYGEN_FOUND)
+      # set input and output files
+      set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Documentation/Doxyfile.in)
+      set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Documentation/Doxyfile)
+
+      # request to configure the file
+      configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+      message("Doxygen build started")
+
+      # note the option ALL which allows to build the docs together with the application
+      add_custom_target( doc_doxygen ALL
+          COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+          WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+          COMMENT "Generating API documentation with Doxygen"
+          VERBATIM )
+  else (DOXYGEN_FOUND)
+    message("Doxygen need to be installed to generate the doxygen documentation")
+  endif (DOXYGEN_FOUND)
 endif()
 
 #-------------------------------------------------------------------------------
@@ -53,8 +91,8 @@ endif()
 include(CTest)
 
 find_package(ParaView REQUIRED)
-find_package(PythonInterp REQUIRED)
-find_package(PythonLibs REQUIRED)
+find_package(PythonInterp 2 REQUIRED)
+find_package(PythonLibs 2 REQUIRED)
 include(${PARAVIEW_USE_FILE})
 option(BUILD_SHARED_LIBS "Build shared libs" ON)
 
@@ -106,26 +144,30 @@ endif()
 
 set (source_files
   vvMainWindow.cxx
-  vvMainWindow.h
   vvColorToolbar.cxx
-  vvColorToolbar.h
   vvToggleSpreadSheetReaction.cxx
-  vvToggleSpreadSheetReaction.h
+  vvLoadDataReaction.cxx
+  vvPlayerControlsToolbar.cxx
+  vvPlayerControlsController.cxx
   )
 
-qt4_wrap_cpp(moc_source_files
+qt5_wrap_cpp(moc_source_files
   vvColorToolbar.h
   vvMainWindow.h
   vvToggleSpreadSheetReaction.h
+  vvLoadDataReaction.h
+  vvPlayerControlsToolbar.h
+  vvPlayerControlsController.h
   )
 
-qt4_wrap_ui(ui_source_files
+qt5_wrap_ui(ui_source_files
   vvColorToolbar.ui
   vvMainWindow.ui
   vvAboutDialog.ui
+  vvPlayerControlsToolbar.ui
   )
 
-qt4_add_resources(rcs_source_files
+qt5_add_resources(rcs_source_files
   vvResources.qrc)
 
 include_directories(
@@ -141,6 +183,8 @@ if (APPLE)
 endif()
 
 # Add the reader plugin and any other plugins.
+set(VV_PLUGIN_LIBRARY VelodyneHDLPlugin) # veloview plugin
+set(VV_NONE_PLUGIN_LIBRARY VelodyneHDLPythonQT) # code needed by veloview but that is not part of the plugin
 add_subdirectory(VelodyneHDL)
 include_directories(VelodyneHDL)
 
@@ -151,8 +195,8 @@ if(NOT APPLE)
   set(vv_configurefile_dest "${CMAKE_CURRENT_BINARY_DIR}/share/")
   set(vv_installfile_dest share)
 else()
-  set(vv_configurefile_dest "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/VeloView.app/Contents/Resources/")
-  set(vv_installfile_dest "${VV_INSTALL_RUNTIME_DIR}/VeloView.app/Contents/Resources")
+  set(vv_configurefile_dest "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${SOFTWARE_NAME}.app/Contents/Resources/")
+  set(vv_installfile_dest "${VV_INSTALL_RUNTIME_DIR}/${SOFTWARE_NAME}.app/Contents/Resources")
 endif()
 set(vv_installed_xml_files "")
 foreach(vv_xml_file ${VV_SHARED_FILES})
@@ -165,29 +209,53 @@ unset(vv_installed_xml_files)
 unset(vv_configurefile_dest)
 unset(vv_installfile_dest)
 
+
+# TODO: once we use Qt built from source on Windows, remove this manual installation
+# currently: PythonQt fails to build against our own build of Qt
+if (WIN32)
+  foreach (qt5_opengl_lib IN ITEMS opengl32sw libEGL libGLESv2 libEGLd
+      Qt5Core Qt5Gui Qt5Widgets Qt5Help Qt5Network Qt5PrintSupport Qt5Sql)
+    install(
+       FILES
+      "${Qt5_DIR}/../../../bin/${qt5_opengl_lib}.dll"
+      DESTINATION
+      "bin")
+  endforeach ()
+  install(DIRECTORY "${Qt5_DIR}/../../../plugins/platforms"
+    DESTINATION "bin"
+  )
+endif ()
+
+
 # This ensure that build_paraview_client() adds an "forwarding path" to locate
 # paraview from installed location.
 set (PARAVIEW_INSTALL_LIB_DIR "lib/paraview-${PARAVIEW_VERSION_MAJOR}.${PARAVIEW_VERSION_MINOR}")
 
-build_paraview_client(VeloView
-  TITLE "VeloView ${VV_VERSION_FULL} ${VV_BUILD_ARCHITECTURE}-bit"
-  ORGANIZATION "Velodyne Lidar"
+build_paraview_client(${SOFTWARE_NAME}
+  TITLE "${SOFTWARE_NAME} ${VV_VERSION_FULL} ${VV_BUILD_ARCHITECTURE}-bit"
+  ORGANIZATION "${VENDOR}"
   VERSION_MAJOR ${VV_VERSION_MAJOR}
   VERSION_MINOR ${VV_VERSION_MINOR}
   VERSION_PATCH ${VV_VERSION_PATCH}
   PVMAIN_WINDOW vvMainWindow
   PVMAIN_WINDOW_INCLUDE vvMainWindow.h
-  SPLASH_IMAGE "${CMAKE_CURRENT_SOURCE_DIR}/Splash.jpg"
-  BUNDLE_ICON "${CMAKE_CURRENT_SOURCE_DIR}/logo.icns"
-  APPLICATION_ICON "${CMAKE_CURRENT_SOURCE_DIR}/logo.ico"
+  SPLASH_IMAGE "${CMAKE_CURRENT_SOURCE_DIR}/SoftwareInformation/${PARAVIEW_SPLASH_IMAGE}"
+  # right now the bundle's logo.icns file must be at the root of VeloView sources
+  # this problem is due to paraview/src/CMake/ParaViewBranding.cmake,
+  # on line: GET_FILENAME_COMPONENT(bundle_icon_file "${BPC_BUNDLE_ICON}" NAME)
+  BUNDLE_ICON "${CMAKE_CURRENT_SOURCE_DIR}/${PARAVIEW_BUNDLE_ICON}"
+  APPLICATION_ICON "${CMAKE_CURRENT_SOURCE_DIR}/SoftwareInformation/${PARAVIEW_APPLICATION_ICON}"
   SOURCES
     ${source_files}
     ${moc_source_files}
     ${ui_source_files}
     ${rcs_source_files}
+  GUI_CONFIGURATION_XMLS
+    ${CMAKE_CURRENT_SOURCE_DIR}/vvSources.xml
+    ${CMAKE_CURRENT_SOURCE_DIR}/vvFilters.xml
   INSTALL_BIN_DIR ${VV_INSTALL_RUNTIME_DIR}
   INSTALL_LIB_DIR ${VV_INSTALL_LIBRARY_DIR}
 )
 
 # We directly link against the plugin and import them statically.
-target_link_libraries(VeloView LINK_PUBLIC VelodyneHDLPlugin VelodyneHDLPythonQT ${PYTHONQTPLUGIN_LIBRARY} ${PYTHONQT_LIBRARIES})
+target_link_libraries(${SOFTWARE_NAME} LINK_PUBLIC ${VV_PLUGIN_LIBRARY} ${VV_NONE_PLUGIN_LIBRARY} ${PYTHONQTPLUGIN_LIBRARY} ${PYTHONQT_LIBRARIES})

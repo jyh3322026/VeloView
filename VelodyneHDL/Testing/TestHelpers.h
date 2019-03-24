@@ -18,12 +18,21 @@
 #include <sstream>
 #include <vector>
 
-class vtkVelodyneHDLReader;
-class vtkVelodyneHDLSource;
+class vtkErrorObserver;
+class vtkLidarReader;
+class vtkLidarStream;
 class vtkPolyData;
 
+// Represent every processing options as a bit. Options are in the following order:
+// IntensityCorrected (bit 0), IgnoreZeroDistances (bit 1),
+// IntraFiringAdjust (bit 2), IgnoreEmptyFrames (bit 3)
+// This allows to easily test and add options if necessary in the future.
+typedef int vvProcessingOptionsType;
+
 // Helper functions
-bool compare(const double *const a, const double *const b, const size_t N, double epsilon);
+bool compare(const double* const a, const double* const b, const size_t N, double epsilon);
+
+std::vector<int> parseOptions(vvProcessingOptionsType currentOptions, int numProcessingOptions);
 
 template <size_t N>
 bool compare(double const (&a)[N], double const (&b)[N], double epsilon)
@@ -31,7 +40,7 @@ bool compare(double const (&a)[N], double const (&b)[N], double epsilon)
   return compare(a, b, N, epsilon);
 }
 
-std::string toString(const double *const d, const size_t N);
+std::string toString(const double* const d, const size_t N);
 
 template <size_t N>
 std::string toString(double const (&d)[N])
@@ -39,16 +48,21 @@ std::string toString(double const (&d)[N])
   return toString(d, N);
 }
 
-vtkPolyData* GetCurrentFrame(vtkVelodyneHDLReader* HDLreader, int index);
+vtkPolyData* GetCurrentFrame(vtkLidarReader* HDLreader, int index);
 
-vtkPolyData* GetCurrentFrame(vtkVelodyneHDLSource* HDLsource, int index);
+vtkPolyData* GetCurrentFrame(vtkLidarStream* HDLsource, int index);
 
-int GetNumberOfTimesteps(vtkVelodyneHDLSource* HDLSource);
+int GetNumberOfTimesteps(vtkLidarStream* HDLSource);
 
-std::vector<std::string> GenerateFileList(const std::string &metaFileName);
+std::vector<std::string> GenerateFileList(const std::string& metaFileName);
 
-vtkPolyData* GetCurrentReference(const std::vector<std::string> &referenceFilesList,
-  int index);
+vtkPolyData* GetCurrentReference(const std::vector<std::string>& referenceFilesList, int index);
+
+void SetProcessingOptions(vtkLidarReader* HDLReader, vvProcessingOptionsType currentOptions,
+  int numProcessingOptions);
+
+//void SetProcessingOptions(vtkLidarStream* HDLSource, vvProcessingOptionsType currentOptions,
+//  int numProcessingOptions, std::string pcapFileName, std::string destinationIp, int dataPort);
 
 // Test functions
 /**
@@ -102,5 +116,20 @@ int TestPointPositions(vtkPolyData* currentFrame, vtkPolyData* currentReference)
  * @return 0 on success, 1 on failure
  */
 int TestRPMValues(vtkPolyData* currentFrame, vtkPolyData* currentReference);
+
+/**
+ * @brief TestProcessingOptions
+ * @param HDLReader Current reader
+ * @return 0 on success, 1 on failure
+ */
+int TestProcessingOptions(vtkLidarReader* HDLReader);
+
+/**
+ * @brief TestProcessingOptions
+ * @param HDLSource Current source
+ * @return 0 on success, 1 on failure
+ */
+int TestProcessingOptions(vtkLidarStream* HDLSource, std::string pcapFileName,
+  std::string destinationIp, int dataPort);
 
 #endif
